@@ -10,7 +10,7 @@ This must-use plugin provides a security mechanism to lock and unlock WordPress 
   - Version control enforcement 
   - Time rollback protection 
 - **Automatic initialization** on new installations
-- **Apache-level security** (if running on an Apache server)
+- **Apache-level security** (OBS! only for Apache server)
 
 ## Installation
 
@@ -20,7 +20,11 @@ This must-use plugin provides a security mechanism to lock and unlock WordPress 
    define('EXPECTED_HASH', 'your-secure-hash-here');
    ```
    Replace `'your-secure-hash-here'` with a secure SHA-256 hash.
-3. If using Apache, place the provided `.htaccess` file in your WordPress root directory.
+3. **If using Apache:** place the provided `.htaccess` file in your WordPress root directory.
+4. You might need to visit `update_checksums` after adding the plugin. 
+```
+https://your-site.com/?update_checksums=your-secure-hash-here
+```
 
 ## Initialization
 
@@ -54,9 +58,4 @@ The plugin locks the site if:
 - **Expected security settings are missing**
 - **System time manipulation is detected**
 - **Version rollback is attempted**
-
-### Apache Security Layer (OBS! ONLY FOR APACHE SERVERS)
-
-The plugin can be reinforced with Apache-level security through the `.htaccess` file.
-
 
