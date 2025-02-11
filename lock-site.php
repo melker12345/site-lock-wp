@@ -13,15 +13,29 @@
 
 // Initialize the plugin
 function initialize_site_lock_plugin() {
-    // Only initialize if not already done
-    if (get_option('site_lock_version', 0) === 0) {
+    // Check if this is first time initialization
+    $is_initialized = get_option('site_lock_initialized', false);
+    
+    if (!$is_initialized) {
+        // Set initial version
         update_option('site_lock_version', 1);
+        
+        // Clear any existing hash to start fresh
+        update_option('site_lock_hash', '');
+        
+        // Update checksums for the first time
         update_critical_file_checksums();
+        
+        // Mark as initialized
+        update_option('site_lock_initialized', true);
     }
 }
 
-// Run initialization on every load until it's set
-add_action('init', 'initialize_site_lock_plugin', 0); // Priority 0 ensures it runs first
+// Run initialization on plugin load
+add_action('plugins_loaded', 'initialize_site_lock_plugin', 0);
+
+// Run integrity check on every request
+add_action('init', 'verify_integrity', 1); // Priority 1 ensures it runs before other checks
 
 function update_critical_file_checksums() {
     $checksums = array(
@@ -39,6 +53,11 @@ function update_critical_file_checksums() {
 }
 
 function verify_integrity() {
+    // Skip integrity check during initialization
+    if (!get_option('site_lock_initialized', false)) {
+        return;
+    }
+    
     // Check version number
     $version = get_option('site_lock_version', 0);
     if ($version < 1) {
@@ -75,7 +94,7 @@ function verify_integrity() {
 }
 
 // Define the last allowed modification date in "ddmmyyyy" format (e.g., 10 Feb 2025 -> "10022025").
-define('LAST_ALLOWED_MODIFICATION_DATE', '11022025');
+define('LAST_ALLOWED_MODIFICATION_DATE', '12022025');
 
 // Convert the human-readable date to a Unix timestamp
 $last_allowed_timestamp = strtotime(
@@ -86,10 +105,7 @@ $last_allowed_timestamp = strtotime(
 
 // Hook into WordPress initialization to check site lock status and unlock functionality
 add_action('init', 'check_must_use_plugin_and_file_modification');
-
-// Run integrity check on every request
 add_action('init', 'verify_integrity', 1); // Priority 1 ensures it runs before other checks
-
 /**
  * Function to check if the must-use plugin is present, if `wp-config.php` was modified after the allowed date,
  * and if the SHA-256 hash matches. Also handles unlocking via secret URL.
