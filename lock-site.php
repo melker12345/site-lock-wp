@@ -13,29 +13,15 @@
 
 // Initialize the plugin
 function initialize_site_lock_plugin() {
-    // Check if this is first time initialization
-    $is_initialized = get_option('site_lock_initialized', false);
-    
-    if (!$is_initialized) {
-        // Set initial version
+    // Only initialize if not already done
+    if (get_option('site_lock_version', 0) === 0) {
         update_option('site_lock_version', 1);
-        
-        // Clear any existing hash to start fresh
-        update_option('site_lock_hash', '');
-        
-        // Update checksums for the first time
         update_critical_file_checksums();
-        
-        // Mark as initialized
-        update_option('site_lock_initialized', true);
     }
 }
 
-// Run initialization on plugin load
-add_action('plugins_loaded', 'initialize_site_lock_plugin', 0);
-
-// Run integrity check on every request
-add_action('init', 'verify_integrity', 1); // Priority 1 ensures it runs before other checks
+// Run initialization on every load until it's set
+add_action('init', 'initialize_site_lock_plugin', 0); // Priority 0 ensures it runs first
 
 function update_critical_file_checksums() {
     $checksums = array(
@@ -52,42 +38,48 @@ function update_critical_file_checksums() {
     update_option('site_lock_last_update', $current_time);
 }
 
+
 function verify_integrity() {
-    // Skip integrity check during initialization
-    if (!get_option('site_lock_initialized', false)) {
+    $version = get_option('site_lock_version', 0);
+
+    // Auto-initialize if first run
+    if ($version === 0) {
+        initialize_site_lock_plugin();
         return;
     }
-    
-    // Check version number
-    $version = get_option('site_lock_version', 0);
-    if ($version < 1) {
-        show_lock_message('Security violation: Version mismatch detected.');
+
+    $stored_checksums = get_option('site_lock_checksums', array());
+    $backup_checksums = get_option('site_lock_checksums_backup', array());
+
+    // If no checksums exist, assume first run and initialize them
+    if (empty($stored_checksums) || empty($backup_checksums)) {
+        update_critical_file_checksums();
+        return;
+    }
+
+    // Current hashes
+    $current_wp_config_hash = hash_file('sha256', ABSPATH . 'wp-config.php');
+    $current_plugin_hash = hash_file('sha256', __FILE__);
+
+    // If checksums are different, allow safe updates via a URL
+    if ($current_wp_config_hash !== $stored_checksums['wp-config'] ||
+        $current_plugin_hash !== $stored_checksums['lock-site']) {
+
+        if (isset($_GET['update_checksums']) && $_GET['update_checksums'] === EXPECTED_HASH) {
+            // Update checksums to match the new changes
+            update_critical_file_checksums();
+            die('<h1>Success</h1><p>Checksums updated successfully.</p>');
+        }
+
+        // Otherwise, lock the site as a security measure
+        show_lock_message('Security violation: Critical files have been modified. <br> 
+            If you made legitimate changes, visit: <br> 
+            <strong>' . site_url() . '/?update_checksums=' . EXPECTED_HASH . '</strong> to allow the update.');
         exit;
     }
 
-    // Verify checksums
-    $stored_checksums = get_option('site_lock_checksums', array());
-    $backup_checksums = get_option('site_lock_checksums_backup', array());
-    
-    // If checksums don't match between primary and backup, possible tampering
-    if ($stored_checksums !== $backup_checksums) {
-        show_lock_message('Security violation: Checksum verification failed.');
-        exit;
-    }
-    
-    // Verify current file checksums
-    $current_wp_config_hash = hash_file('sha256', ABSPATH . 'wp-config.php');
-    $current_plugin_hash = hash_file('sha256', __FILE__);
-    
-    if ($current_wp_config_hash !== $stored_checksums['wp-config'] ||
-        $current_plugin_hash !== $stored_checksums['lock-site']) {
-        show_lock_message('Security violation: Critical files have been modified.');
-        exit;
-    }
-    
     // Verify time hasn't been rolled back
-    $last_update = get_option('site_lock_last_update', 0);
-    if (time() < $last_update) {
+    if (time() < get_option('site_lock_last_update', 0)) {
         show_lock_message('Security violation: System time manipulation detected.');
         exit;
     }
@@ -105,7 +97,10 @@ $last_allowed_timestamp = strtotime(
 
 // Hook into WordPress initialization to check site lock status and unlock functionality
 add_action('init', 'check_must_use_plugin_and_file_modification');
+
+// Run integrity check on every request
 add_action('init', 'verify_integrity', 1); // Priority 1 ensures it runs before other checks
+
 /**
  * Function to check if the must-use plugin is present, if `wp-config.php` was modified after the allowed date,
  * and if the SHA-256 hash matches. Also handles unlocking via secret URL.
