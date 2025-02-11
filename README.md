@@ -20,8 +20,9 @@ This must-use plugin provides a security mechanism to lock and unlock WordPress 
    define('EXPECTED_HASH', 'your-secure-hash-here');
    ```
    Replace `'your-secure-hash-here'` with a secure SHA-256 hash.
-3. **If using Apache:** place the provided `.htaccess` file in your WordPress root directory.
-4. You might need to visit `update_checksums` after adding the plugin. 
+3. Update the date `define('LAST_ALLOWED_MODIFICATION_DATE', '12022025'); // DDMMYYYY` in `lock-site.php`   
+4. **If using Apache:** place the provided `.htaccess` file in your WordPress root directory.
+5. You might need to visit `update_checksums` after adding the plugin. 
 ```
 https://your-site.com/?update_checksums=your-secure-hash-here
 ```
