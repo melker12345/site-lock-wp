@@ -1,0 +1,11 @@
+# OBS ONLY FOR APACHE SERVERS!
+
+<IfModule mod_rewrite.c>
+    RewriteEngine On
+    # If the security plugin is missing, show an error message instead of redirecting
+    RewriteCond %{DOCUMENT_ROOT}/wp-content/mu-plugins/lock-site.php !-f
+    RewriteRule ^(.*)$ - [R=503,L]
+</IfModule>
+
+# Custom 503 error message
+ErrorDocument 503 "<h1>Site Locked</h1><p>This site is locked due to a security issue.</p><p>Please contact the administrator.</p>"
